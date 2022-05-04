@@ -1,0 +1,51 @@
+---
+title: "Exercise 1"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load packages
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+## 1. Downloaded Contact informations from Linkedin
+
+## 2. Import data into R
+
+
+```{r}
+library(readr)
+connections <- read_csv("Connections.csv")
+View(connections)
+```
+
+## 3. Count contacts by current employer
+
+
+```{r}
+connections %>% 
+  count(Company) %>% 
+  arrange(-n)
+```
+## 3. Count contacts Total
+
+
+```{r}
+connections %>% 
+  count()
+```
+
+## 4. Create node list
+
+We will deal with First Name and Company columns
+add a column with the values from the row ids
+
+```{r}
+connections <- connections %>% rowid_to_column("Id") 
+```
