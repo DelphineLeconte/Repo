@@ -7,11 +7,12 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## load packages
+## Load packages
 
 ```{r}
 library(tidyverse)
 library(dplyr)
+library(igraph)
 ```
 
 ## 1. Downloaded Contact informations from Linkedin
@@ -22,7 +23,7 @@ library(dplyr)
 ```{r}
 library(readr)
 connections <- read_csv("Connections.csv")
-View(connections)
+head(connections)
 ```
 
 ## 3. Count contacts by current employer
@@ -41,11 +42,32 @@ connections %>%
   count()
 ```
 
-## 4. Create node list
+## 4. Create list of nodes
 
-We will deal with First Name and Company columns
-add a column with the values from the row ids
+inspired by 
+```{r}
+connections = connections %>%  unite(name, c("FirstName","LastName" ))
+nodes = connections %>% select(c("name", "Company"))
+nodes = nodes %>% rowid_to_column("id")
+nodes %>% head(10)
+```
+## 5. Create list of edges
+
 
 ```{r}
-connections <- connections %>% rowid_to_column("Id") 
+
+edges = connections %>% select(c(name, Company)) %>% left_join(nodes %>% select(c(id,name)), by = c("name"="name"))
+edges = edges %>% left_join(edges, by = "Company", keep=FALSE) %>% select(c("id.x", "id.y", "Company")) %>% filter(id.x!=id.y)
+
+colnames(edges) = c("x", "y", "Company")
+edges %>% head(10)
+```
+
+## 6. Plot
+
+
+```{r}
+linkedIn_graph = graph_from_data_frame(d=edges,vertices=NULL ,directed=FALSE)
+linkedIn_graph
+#did not achieve to plot
 ```
