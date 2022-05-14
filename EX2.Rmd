@@ -1,0 +1,42 @@
+---
+title: "Exercise 2"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Install igraph and tidygraph
+
+
+``` {r }
+install.packages("igraph")
+install.packages("tidygraph")
+install.packages("ggraph")
+```
+
+## Load libraries
+
+```{r }
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(readr)
+```
+
+## Load nodes table
+
+```{r }
+nodes <- read_csv("Ex2 - NODES.csv")
+head(nodes)
+```
+
+## Load edges table
+
+```{r }
+edges <- read_csv("Ex2 - EDGES.csv")
+head(edges)
+```

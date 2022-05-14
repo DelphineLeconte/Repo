@@ -1,0 +1,41 @@
+Untitled
+================
+
+`{r setup, include=FALSE} knitr::opts_chunk$set(echo = TRUE)`
+
+## GitHub Documents
+
+This is an R Markdown format used for publishing markdown documents to
+GitHub. When you click the **Knit** button all R code chunks are run and
+a markdown file (.md) suitable for publishing to GitHub is generated.
+
+## Including Code
+
+You can include R code in the document as follows:
+
+`{r cars} summary(cars)`
+
+## Including Plots
+
+You can also embed plots, for example:
+
+`{r pressure, echo=FALSE} plot(pressure)`
+
+Note that the `echo = FALSE` parameter was added to the code chunk to
+prevent printing of the R code that generated the plot.
+
+## Install igraph and tidygraph
+
+`{r } install.packages("igraph") install.packages("tidygraph") install.packages("ggraph")`
+
+## Load libraries
+
+`{r } library(tidyverse) library(tidygraph) library(ggraph) library(readr)`
+
+## Load nodes table
+
+`{r } nodes <- read_csv("Ex2 - NODES.csv") head(nodes)`
+
+## Load edges table
+
+`{r } edges <- read_csv("Ex2 - EDGES.csv") head(edges)`
