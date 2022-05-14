@@ -8,16 +8,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-
-## Install igraph and tidygraph
-
-
-``` {r }
-install.packages("igraph")
-install.packages("tidygraph")
-install.packages("ggraph")
-```
-
 ## Load libraries
 
 ```{r }
@@ -40,3 +30,27 @@ head(nodes)
 edges <- read_csv("Ex2 - EDGES.csv")
 head(edges)
 ```
+
+
+## Plot network
+
+
+
+```{r }
+ig <- igraph::graph_from_data_frame(edges, vertices = nodes) %>% as_tbl_graph()
+
+```
+
+
+```{r }
+social_net <- ggraph(ig, layout = "stress") +                                                                                                         
+  geom_node_point(size = 2) +                                         
+  geom_node_text(aes(label = name), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link() +
+  theme_void()
+
+show(social_net)
+```
+
+
+
