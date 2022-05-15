@@ -120,7 +120,7 @@ We would need to calculate other measures for centrality, maybe with directionna
 
 ## Plot with centrality degree
 
-
+(using code of classmate for the plot here)
 ```{r }
 
 library(graphlayouts)

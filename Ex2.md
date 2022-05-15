@@ -23,7 +23,7 @@ install.packages("igraph", repos = "http://cran.us.r-project.org")
 
     ## 
     ## The downloaded binary packages are in
-    ##  C:\Users\bapti\AppData\Local\Temp\Rtmpa4tRJM\downloaded_packages
+    ##  C:\Users\bapti\AppData\Local\Temp\RtmpO0wYn9\downloaded_packages
 
 ``` r
 library(igraph)
@@ -236,6 +236,8 @@ centrality, maybe with directionnal edges, or at least have more
 information about each node (attributes of the node).
 
 ## Plot with centrality degree
+
+(using code of classmate for the plot here)
 
 ``` r
 library(graphlayouts)
