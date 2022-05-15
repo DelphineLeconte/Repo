@@ -8,6 +8,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
+
+
+## install igraph
+
+```{r }
+install.packages("igraph", repos = "http://cran.us.r-project.org")
+library(igraph)
+```
+
+
 ## Load libraries
 
 ```{r }
@@ -15,6 +25,7 @@ library(tidyverse)
 library(tidygraph)
 library(ggraph)
 library(readr)
+
 ```
 
 ## Load nodes table
@@ -34,13 +45,14 @@ head(edges)
 
 ## Plot network
 
-
+Create object that ggraph could work with
 
 ```{r }
 ig <- igraph::graph_from_data_frame(edges, vertices = nodes) %>% as_tbl_graph()
 
 ```
 
+Create and display plot with lables
 
 ```{r }
 social_net <- ggraph(ig, layout = "stress") +                                                                                                         
@@ -52,5 +64,76 @@ social_net <- ggraph(ig, layout = "stress") +
 show(social_net)
 ```
 
+From this plot, degree centrality puts B, C, D and 3 as most central nodes.
+However A seems to be node with highest betweenness centrality
+
+## Determine measures of centrality
 
 
+1- fonction
+2- resultat (table)
+3- plot with degree centrality
+4 - interpretation
+
+for each of the 3 measures of centrality
+
+Than final discussion
+
+
+
+- Degree centrality:
+
+"The simplest measure of centrality is degree centrality. It counts how many edges each node has - the most degree central actor is the one with the most ties." (https://bookdown.org/markhoff/social_network_analysis/centrality.html)
+
+```{r }
+degree <- degree(ig)
+degree
+```
+
+This table confirms the same level of degree centrality for B, C, D and Three. This is not very helfpul if we are to pick one seat in the bus, B, C and D would have the same interest for creating informal social connexions. Only A can be eliminated. We would need further attributes to distinguish the advantages of B, C, and D so as to pick one seat to sit, or look at different centrality measure.
+
+
+- Closeness:
+We measure the distance between two nodes as the length of the shortest path between them. Farness, for a given node, is the average distance from that node to all other nodes. Closeness is then the reciprocal of farness (1/farness).
+
+```{r }
+closeness <- closeness(ig)
+closeness
+```
+I do not understand why R would not acheive to find a value for the closeness measure for Four and Six
+
+
+- Betweenness centrality
+
+betweenness effectively counts how many shortest paths each node is on. The higher a node’s betweenness, the more important they are for the efficient flow of goods in a network.
+
+```{r }
+betweenness <- betweenness(ig)
+betweenness
+```
+From betweenness centrality, we find that A is the best choice to pick a sit because it is the node that concentrates the flow of information in the network. This appears in the plot of the network we did earlier.
+
+
+Overall, degree centrality and betweenness give different indications on which seat to pick.
+We would need to calculate other measures for centrality, maybe with directionnal edges, or at least have more information about each node (attributes of the node).
+
+
+## Plot with centrality degree
+
+
+```{r }
+
+library(graphlayouts)
+
+ggraph(ig, "stress", bbox = 15) +
+  geom_edge_link2(aes(edge_colour = ""), edge_width = 0.5) +
+  geom_node_point(aes(fill = betweenness, size = degree), shape = 21) +
+  geom_node_text(aes(label = name, size=closeness),
+    family = "mono", repel = TRUE
+  ) +
+  scale_edge_colour_brewer(palette = "Set1") +
+  scale_size(range = c(2, 5), guide = "none") +
+  theme_graph() 
+
+
+```
