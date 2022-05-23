@@ -224,9 +224,7 @@ grid.arrange(chart2gender,chart2race,chart2tenure,ncol=2, widths=c(1,1))
 
 Group2 largely skewed to Male. Same race distribution as Group 1, White predominant followed by Asian, then Black and Hispanic.
 
-
-##Create Advice network
-
+## Create and display advice network
 
 Group1 and Group2 list nodes while the connections are provided in the edges_sample.csv. The individuals seeking advice are ego_examiner_id while those providing advice are alter_examiner_id.
 We use nodes and edges to create network.
@@ -247,7 +245,7 @@ network = drop_na(network)
 network = merge(x=network, y=examiner_aus, by.x="alter_examiner_id", by.y="examiner_id", all.x=TRUE)
 network = network %>% rename(alter_art_unit=examiner_art_unit, alter_wg=wg)
 network = drop_na(network)
-network
+head(network)
 #there are 1990 lines of advice
 ```
 
@@ -260,27 +258,33 @@ egoNodes = subset(network, select=c(ego_examiner_id,ego_art_unit, ego_wg)) %>% r
 alterNodes = subset(network, select=c(alter_examiner_id,alter_art_unit, alter_wg))%>% rename(examiner_id=alter_examiner_id,art_unit=alter_art_unit,wg=alter_wg)
 nodes = rbind(egoNodes, alterNodes)
 nodes = distinct(nodes)
+
+#there are 220 nodes but we get error related to duplicates so we get rid of those
+
+nodes = nodes %>% group_by(examiner_id) %>% summarise(examiner_id=first(examiner_id), art_unit=first(art_unit), wg=first(wg))
 nodes
-#there are 220 nodes
+#we now have 180 nodes
 ```
 ```{r }
-adviceNet = graph_from_data_frame(d=network, vertices=nodes, directed=TRUE)
-adviceNet
+network = graph_from_data_frame(d=network, vertices=nodes, directed=TRUE)
+network
 ```
-Create and display plot with labels
+Display network
 
 ```{r }
-adviceNet <- ggraph(adviceNet, layout = "stress") +                                                                                                         
+graphnetwork <- ggraph(network, layout = "stress") +                                                                                                         
   geom_node_point(size = 2) +                                         
   geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
   geom_edge_link() +
   theme_void()
-
-show(adviceNet)
+show(graphnetwork)
 ```
+
 I do not understand what the clusters represent
 
 
-ggraph(adviceNet, layout="kk")
-
 ## Calculate centrality scores
+
+
+
+
