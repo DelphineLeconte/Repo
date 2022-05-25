@@ -204,9 +204,9 @@ rm(examiner_names_gender)
 gc()
 ```
 
-    ##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-    ## Ncells  4789863 255.9    8513015 454.7  5110257 273.0
-    ## Vcells 50016714 381.6   93299757 711.9 80332520 612.9
+    ##            used  (Mb) gc trigger  (Mb) max used (Mb)
+    ## Ncells  4790157 255.9    8526330 455.4  5110551  273
+    ## Vcells 50018289 381.7   93302478 711.9 80334080  613
 
 ## Add race
 
@@ -256,8 +256,8 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-    ## Ncells  5130098 274.0    8513015 454.7  5812726 310.5
-    ## Vcells 53703427 409.8   93299757 711.9 92541236 706.1
+    ## Ncells  5130392 274.0    8526330 455.4  5813020 310.5
+    ## Vcells 53705001 409.8   93302478 711.9 92542809 706.1
 
 ## Add tenure
 
@@ -299,8 +299,8 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger   (Mb)  max used   (Mb)
-    ## Ncells  5143600 274.7   15414152  823.3  15414152  823.3
-    ## Vcells 66080948 504.2  134527649 1026.4 134312942 1024.8
+    ## Ncells  5143894 274.8   15444244  824.9  15444244  824.9
+    ## Vcells 66082522 504.2  134531567 1026.4 134314516 1024.8
 
 ``` r
 head(applications)
@@ -577,7 +577,7 @@ nodes
     ## # … with 170 more rows
 
 ``` r
-#we now have 180 nodes
+#we now have 180 nodes, problem is we might be losing data because of this step (non unique nodes may be because seek advice several times)
 ```
 
 ``` r
@@ -585,11 +585,11 @@ network = graph_from_data_frame(d=network, vertices=nodes, directed=TRUE)
 network
 ```
 
-    ## IGRAPH 4aac50e DN-- 180 1990 -- 
+    ## IGRAPH b3e891a DN-- 180 1990 -- 
     ## + attr: name (v/c), art_unit (v/n), wg (v/c), application_number (e/n),
     ## | advice_date (e/n), ego_art_unit (e/n), ego_wg (e/c), alter_art_unit
     ## | (e/n), alter_wg (e/c)
-    ## + edges from 4aac50e (vertex names):
+    ## + edges from b3e891a (vertex names):
     ##  [1] 59196->84867 59196->84867 59196->84867 59211->94046 59211->94046
     ##  [6] 59211->94046 59211->94046 59211->94046 59211->94046 59211->94046
     ## [11] 59211->94046 59211->94046 59211->63394 59211->94046 59211->94046
@@ -598,18 +598,346 @@ network
     ## [26] 59227->61615 59265->76727 59265->72052 59265->76727 59338->71174
     ## + ... omitted several edges
 
+V(network)![color = nodes](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;color%20%3D%20nodes "color = nodes")art_unit
+
 Display network
 
 ``` r
-graphnetwork <- ggraph(network, layout = "stress") +                                                                                                         
-  geom_node_point(size = 2) +                                         
+V(network)$color = nodes$art_unit
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = 2, aes(color = color) ) +  
   geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
-  geom_edge_link() +
-  theme_void()
-show(graphnetwork)
+  geom_edge_link(edge_color="grey")
+graphnetwork
 ```
 
-![](Ex3_files/figure-gfm/unnamed-chunk-11-1.png)<!-- --> I do not
-understand what the clusters represent
+![](Ex3_files/figure-gfm/unnamed-chunk-11-1.png)<!-- --> Note some
+clusters in the advice networks, diconnected from the rest. Groupe 1
+seeks advice to group 2 on a regular basis while group 2 only
+exceptionnaly looks for advice from group 1.
 
-# Calculate centrality scores
+## Calculate centrality scores
+
+### Degree centrality
+
+``` r
+degree <- degree(network,v=V(network))
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = degree, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex3_files/figure-gfm/unnamed-chunk-12-1.png)<!-- --> degree
+centrality reflects the number of edges connected to it
+
+we clearly have winners both in the group 1 and group 2.
+
+Let us find who they are
+
+``` r
+degree
+```
+
+    ## 59196 59211 59227 59265 59338 59359 59475 59497 59693 59706 59738 59771 59987 
+    ##     3    27     4     3    29    20     1     5    14     6    77     1    47 
+    ## 60431 60575 60958 61105 61276 61558 61615 61757 62098 62346 62397 62498 63011 
+    ##     1     7     1     1    13     3    10    32    67     2    24     7     2 
+    ## 63226 63324 63394 63470 63511 63842 63963 64004 64053 64064 64169 64331 64445 
+    ##     1     2     3     3    23     1     3     1    86     2    24     1     2 
+    ## 64506 64507 64659 64940 65024 65446 65654 65805 65919 66266 66336 66436 67217 
+    ##     4     3    38     7   198    48     5     1     2   138     1   106     4 
+    ## 67620 67657 67698 67901 68165 68227 68445 68546 68603 68665 68922 68970 69193 
+    ##     1     2    54     3     5     1     3     2     6    20    14     6     7 
+    ## 69583 69917 70176 70204 70227 70858 71101 71174 71259 71414 71655 71946 72052 
+    ##    24    29    11    87     6     4     2    14    36    16     9   171    22 
+    ## 72102 72153 72355 72524 72666 72820 72882 72903 73074 73383 73689 73788 74224 
+    ##     4     6     2     4    23    34   432     6     1     1     2     3    61 
+    ## 74684 75243 75367 75380 75406 75409 75568 75730 75774 76727 76749 76959 77112 
+    ##     5     1     1     4     4     8    31    14    17    64    10     3     8 
+    ## 77791 77971 78003 78488 79495 79564 81117 81987 82047 83254 83794 84289 84867 
+    ##     6     1     1     1    10    48     9     4    12    29    10     1     3 
+    ## 84896 85381 85761 85865 85987 86115 87897 89539 90219 90331 90863 90956 91016 
+    ##    10    24     2    42    16     6   125   212     3     5    15    84     2 
+    ## 91048 92572 92733 92784 93421 93626 93715 93839 93869 93909 94046 94084 94238 
+    ##     1     2     2    44    35    19     4   156     8     1    18     1     6 
+    ## 94285 95084 95459 95604 95634 95660 95784 95814 96027 96068 96143 96267 96371 
+    ##     1     3    23    10     2     6     1     2    25     8    26     6     5 
+    ## 96500 96556 96568 96865 96963 97024 97543 97553 97705 97745 97772 97910 98045 
+    ##     2     1     9    10    19    10    30     1    13     1    10   167    23 
+    ## 98469 98470 98563 98700 98891 98943 99207 99316 99340 99879 99892 
+    ##     3     5    98     6     3     1     6    28     2    16     2
+
+the Id 72882 has maximum degree centrality at 432. it is part of group1.
+
+``` r
+group1[group1$examiner_id==72882,]
+```
+
+    ## # A tibble: 960 × 21
+    ##    application_number filing_date examiner_name_last examiner_name_first
+    ##    <chr>              <date>      <chr>              <chr>              
+    ##  1 09445602           2000-03-23  HELMS              LARRY              
+    ##  2 09481175           2000-01-12  HELMS              LARRY              
+    ##  3 <NA>               NA          <NA>               <NA>               
+    ##  4 <NA>               NA          <NA>               <NA>               
+    ##  5 09482630           2000-01-12  HELMS              LARRY              
+    ##  6 09485737           2000-02-14  HELMS              LARRY              
+    ##  7 09489391           2000-01-21  HELMS              LARRY              
+    ##  8 09491894           2000-01-26  HELMS              LARRY              
+    ##  9 09493539           2000-01-28  HELMS              LARRY              
+    ## 10 09497625           2000-02-03  HELMS              LARRY              
+    ## # … with 950 more rows, and 17 more variables: examiner_name_middle <chr>,
+    ## #   examiner_id <dbl>, examiner_art_unit <dbl>, uspc_class <chr>,
+    ## #   uspc_subclass <chr>, patent_number <chr>, patent_issue_date <date>,
+    ## #   abandon_date <date>, disposal_type <chr>, appl_status_code <dbl>,
+    ## #   appl_status_date <chr>, tc <dbl>, gender <chr>, race <chr>,
+    ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
+
+``` r
+#Examiner with highest degree centrality is 72882, a white male with 5987 days of tenure (against an average of 6128 in group 1)
+```
+
+the Id 89539 has second highest degree centrality. it is part of group1.
+
+``` r
+applications[applications$examiner_id==89539,]
+```
+
+    ## # A tibble: 9,495 × 21
+    ##    application_number filing_date examiner_name_last examiner_name_first
+    ##    <chr>              <date>      <chr>              <chr>              
+    ##  1 <NA>               NA          <NA>               <NA>               
+    ##  2 09242070           2000-01-10  LORENGO            JERRY              
+    ##  3 <NA>               NA          <NA>               <NA>               
+    ##  4 <NA>               NA          <NA>               <NA>               
+    ##  5 <NA>               NA          <NA>               <NA>               
+    ##  6 <NA>               NA          <NA>               <NA>               
+    ##  7 <NA>               NA          <NA>               <NA>               
+    ##  8 09482672           2000-01-13  LORENGO            JERRY              
+    ##  9 09483176           2000-01-13  LORENGO            JERRY              
+    ## 10 <NA>               NA          <NA>               <NA>               
+    ## # … with 9,485 more rows, and 17 more variables: examiner_name_middle <chr>,
+    ## #   examiner_id <dbl>, examiner_art_unit <dbl>, uspc_class <chr>,
+    ## #   uspc_subclass <chr>, patent_number <chr>, patent_issue_date <date>,
+    ## #   abandon_date <date>, disposal_type <chr>, appl_status_code <dbl>,
+    ## #   appl_status_date <chr>, tc <dbl>, gender <chr>, race <chr>,
+    ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
+
+``` r
+#Examiner with second highest degree centrality is 89539, a white male with 6318 days of tenure (against an average of 6391 in group 2)
+```
+
+From these two observations, examiners with highest degree centrality
+are present in both group1 and group2, they are white males - which is
+itself not surprising given the demographics of the two groups. In terms
+of tenure, the individual from group1 has an average tenure, so this
+attribute does not explain why specifically he would be showing the
+highest degree centrality, or in other words, why he would have the most
+edges connected to it. On the other hand, the tenure of individual with
+highest degree centrality in group2 is close to the mximum. We can
+wonder why the individual in group 2 with the ac tual highest tenure is
+not also showing the highest degree centrality.
+
+``` r
+group2[group2$tenure_days==6391,]
+```
+
+    ## # A tibble: 1,444 × 21
+    ##    application_number filing_date examiner_name_last examiner_name_first
+    ##    <chr>              <date>      <chr>              <chr>              
+    ##  1 <NA>               NA          <NA>               <NA>               
+    ##  2 <NA>               NA          <NA>               <NA>               
+    ##  3 <NA>               NA          <NA>               <NA>               
+    ##  4 <NA>               NA          <NA>               <NA>               
+    ##  5 <NA>               NA          <NA>               <NA>               
+    ##  6 <NA>               NA          <NA>               <NA>               
+    ##  7 <NA>               NA          <NA>               <NA>               
+    ##  8 <NA>               NA          <NA>               <NA>               
+    ##  9 <NA>               NA          <NA>               <NA>               
+    ## 10 <NA>               NA          <NA>               <NA>               
+    ## # … with 1,434 more rows, and 17 more variables: examiner_name_middle <chr>,
+    ## #   examiner_id <dbl>, examiner_art_unit <dbl>, uspc_class <chr>,
+    ## #   uspc_subclass <chr>, patent_number <chr>, patent_issue_date <date>,
+    ## #   abandon_date <date>, disposal_type <chr>, appl_status_code <dbl>,
+    ## #   appl_status_date <chr>, tc <dbl>, gender <chr>, race <chr>,
+    ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
+
+``` r
+#It is examiner with Id 67698, another white male so we cannot infer why he would not show higher degree centrality than id 89539.
+```
+
+\###Betweenness
+
+``` r
+betweenness <- betweenness(network)
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = betweenness, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex3_files/figure-gfm/unnamed-chunk-17-1.png)<!-- --> Betweenness
+shows the extent to which a node lies on the paths between other nodes.
+From the above chart, there are candidates in both groups.
+Interestingly, an examiner from group 2 seem to be showing high
+betweenness centrality for examiners seeking advice in group 1.
+
+Let us find who are the examiners with highest betweenness centrality.
+
+``` r
+betweenness
+```
+
+    ##      59196      59211      59227      59265      59338      59359      59475 
+    ##  0.0000000  3.0000000  0.0000000  0.0000000 11.0000000  0.0000000  0.0000000 
+    ##      59497      59693      59706      59738      59771      59987      60431 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  4.0000000  0.0000000 
+    ##      60575      60958      61105      61276      61558      61615      61757 
+    ##  0.0000000  0.0000000  0.0000000  1.0000000  0.0000000  0.0000000  0.0000000 
+    ##      62098      62346      62397      62498      63011      63226      63324 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  1.0000000 
+    ##      63394      63470      63511      63842      63963      64004      64053 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  6.0000000 
+    ##      64064      64169      64331      64445      64506      64507      64659 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      64940      65024      65446      65654      65805      65919      66266 
+    ##  5.0000000  0.0000000  0.0000000  2.0000000  0.0000000  0.0000000  0.0000000 
+    ##      66336      66436      67217      67620      67657      67698      67901 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      68165      68227      68445      68546      68603      68665      68922 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      68970      69193      69583      69917      70176      70204      70227 
+    ##  4.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      70858      71101      71174      71259      71414      71655      71946 
+    ##  0.0000000  0.0000000  9.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      72052      72102      72153      72355      72524      72666      72820 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  2.0000000  0.0000000  0.0000000 
+    ##      72882      72903      73074      73383      73689      73788      74224 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      74684      75243      75367      75380      75406      75409      75568 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  3.0000000  0.0000000 
+    ##      75730      75774      76727      76749      76959      77112      77791 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  4.0000000  0.0000000 
+    ##      77971      78003      78488      79495      79564      81117      81987 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.6923077  0.0000000  0.0000000 
+    ##      82047      83254      83794      84289      84867      84896      85381 
+    ##  0.4000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      85761      85865      85987      86115      87897      89539      90219 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      90331      90863      90956      91016      91048      92572      92733 
+    ##  0.0000000  1.0000000 10.0000000  0.0000000  0.0000000  1.0000000  0.0000000 
+    ##      92784      93421      93626      93715      93839      93869      93909 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  2.0000000  0.0000000  0.0000000 
+    ##      94046      94084      94238      94285      95084      95459      95604 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  6.0000000  1.6000000 
+    ##      95634      95660      95784      95814      96027      96068      96143 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 10.3076923  0.0000000 
+    ##      96267      96371      96500      96556      96568      96865      96963 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  8.0000000 
+    ##      97024      97543      97553      97705      97745      97772      97910 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      98045      98469      98470      98563      98700      98891      98943 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000 
+    ##      99207      99316      99340      99879      99892 
+    ##  0.0000000  0.0000000  0.0000000  0.0000000  0.0000000
+
+``` r
+max(betweenness)
+```
+
+    ## [1] 11
+
+Maximum betweenness is at 11, it corresponds to examiner with Id 59338.
+Followed by : 10.30 for Id 96068.
+
+``` r
+applications[applications$examiner_id==59338,]
+```
+
+    ## # A tibble: 10,171 × 21
+    ##    application_number filing_date examiner_name_last examiner_name_first
+    ##    <chr>              <date>      <chr>              <chr>              
+    ##  1 <NA>               NA          <NA>               <NA>               
+    ##  2 09381009           2000-01-12  LI                 BAO                
+    ##  3 09423863           2000-02-08  LI                 BAO                
+    ##  4 09446799           2001-05-01  LI                 BAO                
+    ##  5 09462606           2000-06-12  LI                 BAO                
+    ##  6 <NA>               NA          <NA>               <NA>               
+    ##  7 <NA>               NA          <NA>               <NA>               
+    ##  8 09479596           2000-01-07  LI                 BAO                
+    ##  9 <NA>               NA          <NA>               <NA>               
+    ## 10 <NA>               NA          <NA>               <NA>               
+    ## # … with 10,161 more rows, and 17 more variables: examiner_name_middle <chr>,
+    ## #   examiner_id <dbl>, examiner_art_unit <dbl>, uspc_class <chr>,
+    ## #   uspc_subclass <chr>, patent_number <chr>, patent_issue_date <date>,
+    ## #   abandon_date <date>, disposal_type <chr>, appl_status_code <dbl>,
+    ## #   appl_status_date <chr>, tc <dbl>, gender <chr>, race <chr>,
+    ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
+
+``` r
+#Examiner with highest betweenness centrality is 59338, an Asian male from with 6346 days of tenure (against an average of 6128 in group 1)
+```
+
+``` r
+applications[applications$examiner_id==96068,]
+```
+
+    ## # A tibble: 10,038 × 21
+    ##    application_number filing_date examiner_name_last examiner_name_first
+    ##    <chr>              <date>      <chr>              <chr>              
+    ##  1 <NA>               NA          <NA>               <NA>               
+    ##  2 <NA>               NA          <NA>               <NA>               
+    ##  3 <NA>               NA          <NA>               <NA>               
+    ##  4 <NA>               NA          <NA>               <NA>               
+    ##  5 <NA>               NA          <NA>               <NA>               
+    ##  6 <NA>               NA          <NA>               <NA>               
+    ##  7 <NA>               NA          <NA>               <NA>               
+    ##  8 <NA>               NA          <NA>               <NA>               
+    ##  9 <NA>               NA          <NA>               <NA>               
+    ## 10 <NA>               NA          <NA>               <NA>               
+    ## # … with 10,028 more rows, and 17 more variables: examiner_name_middle <chr>,
+    ## #   examiner_id <dbl>, examiner_art_unit <dbl>, uspc_class <chr>,
+    ## #   uspc_subclass <chr>, patent_number <chr>, patent_issue_date <date>,
+    ## #   abandon_date <date>, disposal_type <chr>, appl_status_code <dbl>,
+    ## #   appl_status_date <chr>, tc <dbl>, gender <chr>, race <chr>,
+    ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
+
+``` r
+#Examiner with second highest betweenness centrality is 39558, an Asian person (gender not attributed in our process) from with 6323 days of tenure (against an average of 6128 in group 1)
+```
+
+Interestingly group 1 shows the examiners with highest scores. This
+confirms the findings we had with degree centrality. However this time
+we are finding that examiners with race = Asian are predominant, they
+are in the most paths between other nodes. This is surprising given the
+race composition of group 1 with less than 25% Asians. In terms of
+gender, the examiner with highest betweenness centrality is a male, but
+we do not have this information for the secong examiner, probably
+because the process we used to assign gender based on names failed in
+this case (because of language maybe?).
+
+Note: I run into a surprising information when looking at examiner
+ranked third in betweenness centrality. It appears that Id 90956 appears
+in our network despite having an examiner_art_unit of 175#, which is
+neither of group1 not of group2. I do not know how this is possible as
+we have sorted examiners so as to have them all within the two
+subworking groups 1 and 2. I would need to revise the composition of the
+network.
+
+### Closeness
+
+``` r
+closeness <- closeness(network)
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = closeness, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+    ## Warning: Removed 81 rows containing missing values (geom_point).
+
+![](Ex3_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->

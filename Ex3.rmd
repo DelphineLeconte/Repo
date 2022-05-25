@@ -263,28 +263,159 @@ nodes = distinct(nodes)
 
 nodes = nodes %>% group_by(examiner_id) %>% summarise(examiner_id=first(examiner_id), art_unit=first(art_unit), wg=first(wg))
 nodes
-#we now have 180 nodes
+#we now have 180 nodes, problem is we might be losing data because of this step (non unique nodes may be because seek advice several times)
 ```
 ```{r }
+
 network = graph_from_data_frame(d=network, vertices=nodes, directed=TRUE)
 network
 ```
+
+
+V(network)$color = nodes$art_unit
+
+
 Display network
 
 ```{r }
-graphnetwork <- ggraph(network, layout = "stress") +                                                                                                         
-  geom_node_point(size = 2) +                                         
+V(network)$color = nodes$art_unit
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = 2, aes(color = color) ) +  
   geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
-  geom_edge_link() +
-  theme_void()
-show(graphnetwork)
+  geom_edge_link(edge_color="grey")
+graphnetwork
 ```
-
-I do not understand what the clusters represent
+Note some clusters in the advice networks, diconnected from the rest.
+Groupe 1 seeks advice to group 2 on a regular basis while group 2 only exceptionnaly looks for advice from group 1.
 
 
 ## Calculate centrality scores
 
+### Degree centrality 
 
+```{r }
+degree <- degree(network,v=V(network))
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = degree, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+degree centrality reflects the number of edges connected to it. From the graph, we clearly have "winners" both in group 1 and group 2. Those would be the examiners with most connexions. Let us find who they are.
+
+```{r }
+degree
+```
+
+
+the Id 72882 has maximum degree centrality at 432. it is part of group1.
+
+```{r }
+group1[group1$examiner_id==72882,]
+#Examiner with highest degree centrality is 72882, a white male with 5987 days of tenure (against an average of 6128 in group 1)
+
+```
+the Id 89539 has second highest degree centrality. it is part of group1.
+
+```{r }
+applications[applications$examiner_id==89539,]
+#Examiner with second highest degree centrality is 89539, a white male with 6318 days of tenure (against an average of 6391 in group 2)
+
+```
+From these two observations, examiners with highest degree centrality are present in both group1 and group2, they are white males - which is itself not surprising given the demographics of the two groups. In terms of tenure, the individual from group1 has an average tenure, so this attribute does not explain why specifically he would be showing the highest degree centrality, or in other words, why he would have the most edges connected to it.
+On the other hand, the tenure of individual with highest degree centrality in group2 is close to the mximum. We can wonder why the individual in group 2 with the ac tual highest tenure is not also showing the highest degree centrality.  
+```{r }
+group2[group2$tenure_days==6391,]
+
+#It is examiner with Id 67698, another white male so we cannot infer why he would not show higher degree centrality than id 89539.
+```
+
+###Betweenness
+
+```{r }
+betweenness <- betweenness(network)
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = betweenness, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+Betweenness shows the extent to which a node lies on the paths between other nodes. From the above chart, there are candidates in both groups. Interestingly, an examiner from group 2 seem to be showing high betweenness centrality for examiners seeking advice in group 1.
+
+Let us find who are the examiners with highest betweenness centrality.
+
+```{r }
+betweenness
+max(betweenness)
+```
+Maximum betweenness is at 11, it corresponds to examiner with Id 59338.
+Followed by : 10.30 for Id 96068.
+
+
+
+```{r }
+applications[applications$examiner_id==59338,]
+#Examiner with highest betweenness centrality is 59338, an Asian male from with 6346 days of tenure (against an average of 6128 in group 1)
+
+```
+
+```{r }
+applications[applications$examiner_id==96068,]
+#Examiner with second highest betweenness centrality is 39558, an Asian person (gender not attributed in our process) from with 6323 days of tenure (against an average of 6128 in group 1)
+
+```
+
+Interestingly group 1 shows the examiners with highest scores. This confirms the findings we had with degree centrality.
+However this time we are finding that examiners with race = Asian are predominant, they are in the most paths between other nodes. This is surprising given the race composition of group 1 with less than 25% Asians.
+In terms of gender, the examiner with highest betweenness centrality is a male, but we do not have this information for the secong examiner, probably because the process we used to assign gender based on names failed in this case (because of language maybe?).
+
+Note: I run into a surprising information when looking at examiner ranked third in betweenness centrality. It appears that Id 90956 appears in our network despite having an examiner_art_unit of 175#, which is neither of group1 not of group2. I do not know how this is possible as we have sorted examiners so as to have them all within the two subworking groups 1 and 2. I would need to revise the composition of the network.
+
+
+
+### Closeness 
+
+```{r }
+closeness <- closeness(network)
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = closeness, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+
+
+```
+
+
+I explored the option of closeness centrality as it is a popular measure of centrality. But from the looks of the graph, there is no clear "winner" in terms of closeness centrality. This metric may be of little use to determine the examiner who lies on shortest path between other nodes. 
+
+
+
+##Eigenvector
+
+
+
+```{r }
+eigenvector <- evcent(network)$vector
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = eigenvector, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+
+
+```
+Eigenvector centrality provides even less information to distinguish one particular examiner with highest centrality score. Eigenvector is about number of edges that a given examiner would have; as well as how important those friends are.
+Interestingly, the examiners we highlighted when looking at degree centrality (highest number of connexions) are not highlighted when looking at eigen vector centrality. We may infer that depsite having many connexions, the "quality" of those connections is limited, in other words they are often sought for advice but by "unimportant" examiners.
+
+
+##Overall conclusions
+different centrality measures give different results in terms of most centrical examiner.degree centrality and betweenness centrality allow to distinguish examiners with comparatively high scores but Closeness and Eigenvector show little difference between examiners.
+Predominance of males despite being relatively equally spread in group 1 at least.No presence of women in the top centrality metrics,
+white for degree centrality and asian for betweenness centrality. Asian is second represented race, although to a much smaller proportion than white in both groups.
+Tenure seems to play a role for Asian examiners highlighted by Betweenness centrality, but tenure proved in the average for those white examiners highlighted by degree centrality.
+
+
+HOMOPHILY:
 
 
