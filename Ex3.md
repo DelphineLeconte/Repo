@@ -1,10 +1,6 @@
 Exercise 3
 ================
 
-## Install packages
-
-to read parquet file + race + gender
-
 ## Load libraries
 
 ``` r
@@ -118,7 +114,9 @@ library(gridExtra)
 library(grid)
 ```
 
-## Load data
+## 1-Load the files and add variables for examiners
+
+### Load data
 
 ``` r
 applications <- read_parquet(paste0("app_data_sample.parquet"))
@@ -167,7 +165,7 @@ head(applications)
     ## #   disposal_type <chr>, appl_status_code <dbl>, appl_status_date <chr>,
     ## #   tc <dbl>
 
-## Get gender for examiners
+### Get gender for examiners
 
 get names without repetition:
 
@@ -205,10 +203,10 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger  (Mb) max used (Mb)
-    ## Ncells  4790157 255.9    8526330 455.4  5110551  273
-    ## Vcells 50018289 381.7   93302478 711.9 80334080  613
+    ## Ncells  4790304 255.9    8608568 459.8  5110698  273
+    ## Vcells 50019830 381.7   96034824 732.7 80335622  613
 
-## Add race
+### Add race for examiners
 
 ``` r
 examiner_surnames <- applications %>% 
@@ -256,10 +254,10 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-    ## Ncells  5130392 274.0    8526330 455.4  5813020 310.5
-    ## Vcells 53705001 409.8   93302478 711.9 92542809 706.1
+    ## Ncells  5130539 274.1    8608568 459.8  5813172 310.5
+    ## Vcells 53706542 409.8   96034824 732.7 94562841 721.5
 
-## Add tenure
+### Add tenure
 
 ``` r
 examiner_dates <- applications %>% 
@@ -299,8 +297,8 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger   (Mb)  max used   (Mb)
-    ## Ncells  5143894 274.8   15444244  824.9  15444244  824.9
-    ## Vcells 66082522 504.2  134531567 1026.4 134314516 1024.8
+    ## Ncells  5144041 274.8   15631818  834.9  15631818  834.9
+    ## Vcells 66084063 504.2  138466145 1056.5 137923367 1052.3
 
 ``` r
 head(applications)
@@ -322,10 +320,12 @@ head(applications)
     ## #   tc <dbl>, gender <chr>, race <chr>, earliest_date <date>,
     ## #   latest_date <date>, tenure_days <dbl>
 
-## Select and display subgroups
+## 2- Pick two workgroups and compare demographics
 
-I selct subgroups with tenure dates covering 2008, when connections were
-made according to our edges_sample.csv
+I select subgroups with tenure dates covering 2008, when connections
+were made according to our edges_sample.csv
+
+### Group1 = 164
 
 ``` r
 group1 = applications[substr(applications$examiner_art_unit, 1,3)==164,]
@@ -410,8 +410,14 @@ grid.arrange(chart1gender,chart1race,chart1tenure,ncol=2, widths=c(1,1))
     ## Warning: Removed 29 rows containing missing values (geom_bar).
 
 ![](Ex3_files/figure-gfm/unnamed-chunk-4-1.png)<!-- --> Group1 rather
-equally distributed between male and female. Large proportion of White,
-followed by Asian.
+equally distributed between male and female although still considerable
+amount of examiners did not get gender attributed in our process. Large
+proportion of White (close to 75%), followed by Asian (close to 25%).
+Black and Hispanic under-represented. Tenure is on average 6,128 days
+but the range of variation is wide, from 314 to 6,350 days. However
+categories above 6,000 very well represented as seen in chart.
+
+### Group2 = 173
 
 ``` r
 group2 = applications[substr(applications$examiner_art_unit, 1,3)==173,]
@@ -497,15 +503,24 @@ grid.arrange(chart2gender,chart2race,chart2tenure,ncol=2, widths=c(1,1))
 
 ![](Ex3_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
-Group2 largely skewed to Male. Same race distribution as Group 1, White
-predominant followed by Asian, then Black and Hispanic.
+Group2 largely skewed to Male with close to 60% of examiners. Race
+distribution shows over-representation of White (close to 75%), followed
+by Asian (close to 25%), then Black and Hispanic largely behind. Tenure
+is on average 5,688 days but range is 251-6,391. The classes with most
+examiners are rather below 5,000 days. Same race distribution as Group
+1, White predominant followed by Asian, then Black and Hispanic.
 
-## Create and display advice network
+Comparison of the 2 groups: Gender distribution is eually distirbuted
+for group 1 but skewed to male for Group2. Race distribution is similar
+for the 2 groups. Tenure ranges are both very large but group 1 has
+higher average tenure than group 2.
 
-Group1 and Group2 list nodes while the connections are provided in the
-edges_sample.csv. The individuals seeking advice are ego_examiner_id
-while those providing advice are alter_examiner_id. We use nodes and
-edges to create network.
+## 3- Create advice networks and calculate centrality scores
+
+### Create advice network
+
+Applications list nodes while the connections are provided in the
+edges_sample.csv.We use nodes and edges to create network.
 
 First we make our nodes dataframe with our two working groups
 
@@ -515,7 +530,7 @@ examiner_aus$wg = substr(examiner_aus$examiner_art_unit, 1,3)
 examiner_aus = examiner_aus[examiner_aus$wg==164 | examiner_aus$wg==173,]
 ```
 
-now we merge edges from csv and selected work groups, by the field
+Now we merge edges from csv and selected work groups, by the field
 “examiner id” both for ego and alter, and we keep only those of our two
 working groups
 
@@ -544,10 +559,6 @@ head(network)
     ## 4    164           1644      164
     ## 5    164           1644      164
     ## 6    164           1644      164
-
-``` r
-#there are 1990 lines of advice
-```
 
 ``` r
 egoNodes = subset(network, select=c(ego_examiner_id,ego_art_unit, ego_wg)) %>% rename(examiner_id=ego_examiner_id,art_unit=ego_art_unit,wg=ego_wg)
@@ -585,11 +596,11 @@ network = graph_from_data_frame(d=network, vertices=nodes, directed=TRUE)
 network
 ```
 
-    ## IGRAPH b3e891a DN-- 180 1990 -- 
+    ## IGRAPH eeaed26 DN-- 180 1990 -- 
     ## + attr: name (v/c), art_unit (v/n), wg (v/c), application_number (e/n),
     ## | advice_date (e/n), ego_art_unit (e/n), ego_wg (e/c), alter_art_unit
     ## | (e/n), alter_wg (e/c)
-    ## + edges from b3e891a (vertex names):
+    ## + edges from eeaed26 (vertex names):
     ##  [1] 59196->84867 59196->84867 59196->84867 59211->94046 59211->94046
     ##  [6] 59211->94046 59211->94046 59211->94046 59211->94046 59211->94046
     ## [11] 59211->94046 59211->94046 59211->63394 59211->94046 59211->94046
@@ -598,9 +609,7 @@ network
     ## [26] 59227->61615 59265->76727 59265->72052 59265->76727 59338->71174
     ## + ... omitted several edges
 
-V(network)![color = nodes](https://latex.codecogs.com/png.image?%5Cdpi%7B110%7D&space;%5Cbg_white&space;color%20%3D%20nodes "color = nodes")art_unit
-
-Display network
+### Display network
 
 ``` r
 V(network)$color = nodes$art_unit
@@ -611,10 +620,81 @@ graphnetwork <- ggraph(network, layout = "kk") +
 graphnetwork
 ```
 
-![](Ex3_files/figure-gfm/unnamed-chunk-11-1.png)<!-- --> Note some
-clusters in the advice networks, diconnected from the rest. Groupe 1
-seeks advice to group 2 on a regular basis while group 2 only
-exceptionnaly looks for advice from group 1.
+![](Ex3_files/figure-gfm/unnamed-chunk-11-1.png)<!-- --> We observe two
+very different clusters, showing majority of Group1 (in the bottom) and
+Group 2 (in the top). However within each cluster we see examiners from
+the other group. We also note some smaller clusters in the advice
+networks, diconnected from the rest.
+
+### Homophily
+
+We look for specific distribution of examiners by gender, to see if
+males tend to seek advice to males, and women from women.
+
+``` r
+V(network)$color = applications$gender
+```
+
+    ## Warning in vattrs[[name]][index] <- value: number of items to replace is not a
+    ## multiple of replacement length
+
+``` r
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = 2, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex3_files/figure-gfm/unnamed-chunk-12-1.png)<!-- --> In group 1 we
+seem to have females mostly on the edges of the network while males are
+more in the center. Meanwhile in group2 males and females seem more
+mixed.
+
+We also look at groups being formed by race.
+
+``` r
+V(network)$color = applications$race
+```
+
+    ## Warning in vattrs[[name]][index] <- value: number of items to replace is not a
+    ## multiple of replacement length
+
+``` r
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = 2, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex3_files/figure-gfm/unnamed-chunk-13-1.png)<!-- --> Both networks
+do show strong representation of white examiners, as shown in
+statistics. We might infer that white examiners are grouped in the
+center and other races more in the periphery, although it would be worth
+looking at that from different perspective because white is so
+predominant it might blurry the interpretation.
+
+Finally we look at potential patterns in terms of homophily linked to
+tenure.
+
+``` r
+V(network)$color = applications$tenure_days
+```
+
+    ## Warning in vattrs[[name]][index] <- value: number of items to replace is not a
+    ## multiple of replacement length
+
+``` r
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = 2, aes(color = color) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex3_files/figure-gfm/unnamed-chunk-14-1.png)<!-- --> Tenure seems
+rather mixed in both networks.
 
 ## Calculate centrality scores
 
@@ -622,19 +702,17 @@ exceptionnaly looks for advice from group 1.
 
 ``` r
 degree <- degree(network,v=V(network))
-graphnetwork <- ggraph(network, layout = "kk") +                                         
-  geom_node_point(size = degree, aes(color = color) ) +  
+graphnetwork <- ggraph(network, layout = "kk") +                          
+  geom_node_point(size = degree, aes(color = degree) ) +  
   geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
   geom_edge_link(edge_color="grey")
 graphnetwork
 ```
 
-![](Ex3_files/figure-gfm/unnamed-chunk-12-1.png)<!-- --> degree
-centrality reflects the number of edges connected to it
-
-we clearly have winners both in the group 1 and group 2.
-
-Let us find who they are
+![](Ex3_files/figure-gfm/unnamed-chunk-15-1.png)<!-- --> Degree
+centrality reflects the number of edges connected to each node. From the
+graph, we clearly have “winners” both in group 1 and group 2. Those
+would be the examiners with most connections. Let us find who they are.
 
 ``` r
 degree
@@ -669,7 +747,8 @@ degree
     ## 98469 98470 98563 98700 98891 98943 99207 99316 99340 99879 99892 
     ##     3     5    98     6     3     1     6    28     2    16     2
 
-the Id 72882 has maximum degree centrality at 432. it is part of group1.
+The examiner with Id 72882 has maximum degree centrality at 432. It is
+part of group1.
 
 ``` r
 group1[group1$examiner_id==72882,]
@@ -696,10 +775,11 @@ group1[group1$examiner_id==72882,]
     ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
 
 ``` r
-#Examiner with highest degree centrality is 72882, a white male with 5987 days of tenure (against an average of 6128 in group 1)
+#Examiner with highest degree centrality is 72882, a white male with 5987 days of tenure (against an average of 6,128 in group 1)
 ```
 
-the Id 89539 has second highest degree centrality. it is part of group1.
+The examiner with Id 89539 has second highest degree centrality. it is
+part of group2.
 
 ``` r
 applications[applications$examiner_id==89539,]
@@ -726,19 +806,23 @@ applications[applications$examiner_id==89539,]
     ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
 
 ``` r
-#Examiner with second highest degree centrality is 89539, a white male with 6318 days of tenure (against an average of 6391 in group 2)
+#Examiner with second highest degree centrality is 89539, a white male with 6,318 days of tenure (against an average of 5,688 in group 2)
 ```
 
 From these two observations, examiners with highest degree centrality
-are present in both group1 and group2, they are white males - which is
-itself not surprising given the demographics of the two groups. In terms
-of tenure, the individual from group1 has an average tenure, so this
-attribute does not explain why specifically he would be showing the
-highest degree centrality, or in other words, why he would have the most
-edges connected to it. On the other hand, the tenure of individual with
-highest degree centrality in group2 is close to the mximum. We can
-wonder why the individual in group 2 with the ac tual highest tenure is
-not also showing the highest degree centrality.
+are present in both group1 and group2. They are males - which is itself
+not surprising given the demographics of the two groups (almost 1 chance
+out of two in group 1, while large representation of males in group2).
+They are white, in this case very likely given the high representation
+of white race in both groups. In terms of tenure, the individual from
+group1 has an average tenure, so this attribute does not explain why
+specifically he would be showing the highest degree centrality, or in
+other words, why he would have the most edges connected to it. On the
+other hand, the tenure of individual with highest degree centrality in
+group2 is close to the maximum. We can wonder why the individual in
+group 2 with the actual highest tenure (6391 days) is not also showing
+the highest degree centrality. So tenure is not a straightforward
+explanation for degree centrality.
 
 ``` r
 group2[group2$tenure_days==6391,]
@@ -768,22 +852,23 @@ group2[group2$tenure_days==6391,]
 #It is examiner with Id 67698, another white male so we cannot infer why he would not show higher degree centrality than id 89539.
 ```
 
-\###Betweenness
+### Betweenness
 
 ``` r
 betweenness <- betweenness(network)
 graphnetwork <- ggraph(network, layout = "kk") +                                         
-  geom_node_point(size = betweenness, aes(color = color) ) +  
+  geom_node_point(size = betweenness, aes(color = betweenness) ) +  
   geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
   geom_edge_link(edge_color="grey")
 graphnetwork
 ```
 
-![](Ex3_files/figure-gfm/unnamed-chunk-17-1.png)<!-- --> Betweenness
+![](Ex3_files/figure-gfm/unnamed-chunk-20-1.png)<!-- --> Betweenness
 shows the extent to which a node lies on the paths between other nodes.
 From the above chart, there are candidates in both groups.
-Interestingly, an examiner from group 2 seem to be showing high
-betweenness centrality for examiners seeking advice in group 1.
+Interestingly, examiners from group 2 seem to be showing high
+betweenness centrality for examiners seeking advice in group 1, and vice
+versa.
 
 Let us find who are the examiners with highest betweenness centrality.
 
@@ -906,33 +991,33 @@ applications[applications$examiner_id==96068,]
     ## #   earliest_date <date>, latest_date <date>, tenure_days <dbl>
 
 ``` r
-#Examiner with second highest betweenness centrality is 39558, an Asian person (gender not attributed in our process) from with 6323 days of tenure (against an average of 6128 in group 1)
+#Examiner with second highest betweenness centrality is 96068, an Asian person (gender not attributed in our process) with 6323 days of tenure 
 ```
 
-Interestingly group 1 shows the examiners with highest scores. This
-confirms the findings we had with degree centrality. However this time
-we are finding that examiners with race = Asian are predominant, they
-are in the most paths between other nodes. This is surprising given the
-race composition of group 1 with less than 25% Asians. In terms of
-gender, the examiner with highest betweenness centrality is a male, but
-we do not have this information for the secong examiner, probably
-because the process we used to assign gender based on names failed in
-this case (because of language maybe?).
-
 Note: I run into a surprising information when looking at examiner
-ranked third in betweenness centrality. It appears that Id 90956 appears
-in our network despite having an examiner_art_unit of 175#, which is
-neither of group1 not of group2. I do not know how this is possible as
-we have sorted examiners so as to have them all within the two
-subworking groups 1 and 2. I would need to revise the composition of the
-network.
+ranked second in betweenness centrality. It appears that Id 96068
+appears in our network despite having an examiner_art_unit of 175#,
+which is neither of group1 not of group2. I do not know how this is
+possible as we have sorted examiners so as to have them all within the
+two subworking groups 1 and 2. I would need to revise the composition of
+the network (?? or is there another interpretation?)
+
+Interestingly group 1 shows the examiners with highest betweenness
+scores. This confirms the findings we had with degree centrality.
+However this time we are finding that examiners with race = Asian are
+predominant, they are in the most paths between other nodes. This is
+surprising given the race composition of group 1 with less than 25%
+Asians. In terms of gender, the examiner with highest betweenness
+centrality is a male, but we do not have this information for the second
+examiner, probably because the process we used to assign gender based on
+names failed in this case (because of language maybe?).
 
 ### Closeness
 
 ``` r
 closeness <- closeness(network)
 graphnetwork <- ggraph(network, layout = "kk") +                                         
-  geom_node_point(size = closeness, aes(color = color) ) +  
+  geom_node_point(size = closeness, aes(color = closeness) ) +  
   geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
   geom_edge_link(edge_color="grey")
 graphnetwork
@@ -940,4 +1025,49 @@ graphnetwork
 
     ## Warning: Removed 81 rows containing missing values (geom_point).
 
-![](Ex3_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
+![](Ex3_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+
+I explored the option of closeness centrality as it is a popular measure
+of centrality. But from the looks of the graph, there is no clear
+“winner” in terms of closeness centrality. This metric may be of little
+use (as compared to degree centrality and betweenness centrality) to
+determine the examiner who lies on shortest path between other nodes.
+
+### Eigenvector
+
+``` r
+eigenvector <- evcent(network)$vector
+graphnetwork <- ggraph(network, layout = "kk") +                                         
+  geom_node_point(size = eigenvector, aes(color = eigenvector) ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex3_files/figure-gfm/unnamed-chunk-25-1.png)<!-- --> Eigenvector
+centrality provides even less information to distinguish one particular
+examiner with highest centrality score. Eigenvector is about number of
+edges that a given examiner would have; as well as how important those
+friends are. Interestingly, the examiners we highlighted when looking at
+degree centrality (highest number of connections) are not highlighted
+when looking at eigen vector centrality. We may infer that despite
+having many connections, the “quality” of those connections is limited,
+in other words they are often sought for advice but by “unimportant”
+examiners.
+
+# Conclusions
+
+Different centrality measures give different results in terms of most
+centrical individual examiner. Degree centrality and betweenness
+centrality allow to distinguish examiners with comparatively high scores
+but Closeness and Eigenvector show little difference between examiners.
+group 1 yields the individuals with highest centrality scores (degree
+and betweenness). We observe predominance of males as examiners with
+highest scores.No presence of women in the top centrality metrics
+(degree and betweenness). In terms of race, white is predominant for
+degree centrality and asian for betweenness centrality. This is somehow
+suprising as Asian is second represented race, although to a much
+smaller proportion than white in both groups. Tenure seems to play a
+role for Asian examiners highlighted by Betweenness centrality, but
+tenure proved in the average for those white examiners highlighted by
+degree centrality.
