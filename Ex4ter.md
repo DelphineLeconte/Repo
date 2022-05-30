@@ -132,6 +132,8 @@ edges <- read_csv("edges_sample.csv")
 
 ## Add attributes
 
+### gender
+
 ``` r
 examiner_names <- applications %>% 
   distinct(examiner_name_first)
@@ -176,8 +178,10 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-    ## Ncells  4787815 255.7    8218738 439.0  4807820 256.8
-    ## Vcells 50013286 381.6   93604824 714.2 80329066 612.9
+    ## Ncells  4787964 255.8    8218951 439.0  4807969 256.8
+    ## Vcells 50014685 381.6   93606503 714.2 80330465 612.9
+
+### add race
 
 ``` r
 examiner_surnames <- applications %>% 
@@ -203,7 +207,6 @@ examiner_race <- examiner_race %>%
     max_race_p == pred.whi ~ "white",
     TRUE ~ NA_character_
   ))
-# removing extra columns
 examiner_race <- examiner_race %>% 
   select(surname,race)
 applications <- applications %>% 
@@ -214,8 +217,10 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger  (Mb) max used  (Mb)
-    ## Ncells  5127539 273.9    8218738 439.0  5769753 308.2
-    ## Vcells 53699305 409.7   93604824 714.2 92470234 705.5
+    ## Ncells  5127681 273.9    8218951 439.0  5767422 308.1
+    ## Vcells 53700689 409.8   93606503 714.2 92470705 705.5
+
+### Add tenure
 
 ``` r
 examiner_dates <- applications %>% 
@@ -232,7 +237,6 @@ examiner_dates <- examiner_dates %>%
     ) %>% 
   filter(year(latest_date)<2018)
 
-
 applications <- applications %>% 
   left_join(examiner_dates, by = "examiner_id")
 rm(examiner_dates)
@@ -240,38 +244,31 @@ gc()
 ```
 
     ##            used  (Mb) gc trigger   (Mb)  max used   (Mb)
-    ## Ncells  5142026 274.7   14572047  778.3  14572047  778.3
-    ## Vcells 66078900 504.2  134966945 1029.8 134656556 1027.4
+    ## Ncells  5142169 274.7   14572380  778.3  14572380  778.3
+    ## Vcells 66080291 504.2  134969363 1029.8 134657951 1027.4
 
-## 1. Create application processing time variable
+## 1. Create variable for application processing time
 
 ``` r
-# compute the final decision date as either abandon date or patent issue date
 application_dates <- applications %>% 
     mutate(decision_date = coalesce(abandon_date,patent_issue_date)) %>%
     select(application_number,filing_date, abandon_date, patent_issue_date, decision_date, examiner_id, examiner_art_unit, gender, race, tenure_days) %>%
     filter(!is.na(decision_date))
 
-# compute the application processing time as the difference of filing date and decision date
 application_dates <- application_dates %>% 
-    #mutate(app_proc_time = decision_date - filing_date)
     mutate(app_proc_time = difftime(decision_date, filing_date, units = "days"))
 
-
-# filter out negative and outlying application processing time
 application_dates <- application_dates %>% 
     filter(app_proc_time>ddays(0)) %>% 
     filter(app_proc_time<ddays(10000))
 ```
 
-## Estimate relationship between centrality and application processing time
+## 2-Estimate relationship between centrality and application processing time
 
 ``` r
-# get the workgroup from art unit as rounding down to digit tenth.
+# get the workgroup from art unit
 application_dates <- application_dates %>%
   mutate(wg = (application_dates$examiner_art_unit%/%10) * 10)
-
-# Find out which is the dominating workgroup an examiner handled the applications for.
 library(plyr)
 ```
 
@@ -323,7 +320,7 @@ library(plyr)
 examiner_wg_napp <- ddply(application_dates, .(examiner_id, period, wg), nrow)
 names(examiner_wg_napp) <- c("examiner_id","period", "wg", "n_applications")
 
-# assume an examiner belong to the wg he/she most frequently handled applications for, if tie take the greater wg
+# assume examiner belong to wg most frequently handled applications for
 examiner_wg_napp <- examiner_wg_napp[order(examiner_wg_napp$examiner_id, examiner_wg_napp$period, -(examiner_wg_napp$n_applications), -(examiner_wg_napp$wg)), ] ### sort first
 examiner_wg <- examiner_wg_napp [!duplicated(examiner_wg_napp[c(1,2)]),]
 examiner_wg <- select(examiner_wg, c("examiner_id","wg","period"))
@@ -331,11 +328,7 @@ examiner_wg <- drop_na(examiner_wg)
 
 rm(examiner_wg_napp)
 
-
-
-
 # compute average application processing time
-
 cols <- c("examiner_id","period", "wg", "gender", "race", "tenure_days")
 
 examiners <- application_dates %>%
@@ -348,21 +341,7 @@ examiners <- application_dates %>%
     ## 'race'. You can override using the `.groups` argument.
 
 ``` r
-# compute average application processing time
-
-cols <- c("examiner_id","period", "wg", "gender", "race", "tenure_days")
-
-examiners <- application_dates %>%
-    group_by(across(all_of(cols))) %>%
-    dplyr::summarize(mean_app_proc_time = mean(app_proc_time, na.rm=TRUE), n_app = n()) %>%
-    drop_na()
-```
-
-    ## `summarise()` has grouped output by 'examiner_id', 'period', 'wg', 'gender',
-    ## 'race'. You can override using the `.groups` argument.
-
-``` r
-# subset from applications examiners who belong to the two selected work groups
+# subset work groups
 examiner_aus <- examiners %>%
     filter(period == "t1") %>% 
     #filter(wg == 164 | wg == 173) %>%
@@ -374,11 +353,11 @@ examiner_aus <- examiners %>%
     ## Adding missing grouping variables: `period`
 
 ``` r
-# subset from edges examiners who belong to the two selected work groups
+# subset from edges
 edges_aus <- edges %>%
   filter(ego_examiner_id %in% examiner_aus$examiner_id) %>%
   filter(alter_examiner_id %in% examiner_aus$examiner_id) %>%
-  drop_na() #585
+  drop_na()
 
 # merge work group information
 network <- left_join(edges_aus, examiner_aus, by = c("ego_examiner_id" = "examiner_id"))
@@ -397,11 +376,14 @@ colnames(network)[15] <- "alter_examiner_tenure"
 colnames(network)[16] <- "alter_examiner_appprooctime"
 colnames(network)[17] <- "alter_examiner_napp"
 network <- subset(network, select = -c(period))
+```
 
-# create edge list
+### create network
+
+``` r
+# create edge list and node list
 edge_list <- select(network, c("ego_examiner_id","alter_examiner_id"))
 
-# create node list
 ego <- select(network, c("ego_examiner_id","ego_examiner_wg")) %>%
     dplyr::rename(id=ego_examiner_id, wg=ego_examiner_wg)
 alter <- select(network, c("alter_examiner_id","alter_examiner_wg")) %>%
@@ -415,9 +397,9 @@ advice_net = graph_from_data_frame(d=edge_list, vertices=nodes, directed=TRUE)
 advice_net
 ```
 
-    ## IGRAPH b23e734 DN-- 1519 20803 -- 
+    ## IGRAPH 9b5a4e5 DN-- 1519 20803 -- 
     ## + attr: name (v/c)
-    ## + edges from b23e734 (vertex names):
+    ## + edges from 9b5a4e5 (vertex names):
     ##  [1] 84356->63519 92953->91818 92953->91818 72253->61519 72253->72253
     ##  [6] 67078->75772 67078->75772 67078->97328 91688->71059 91688->71059
     ## [11] 91688->67669 91688->67669 61797->78036 94270->81337 94270->81337
@@ -428,6 +410,8 @@ advice_net
     ## [36] 75772->77746 75772->77746 75772->77746 75772->77746 67713->77746
     ## + ... omitted several edges
 
+### get centrality measures
+
 ``` r
 # calculate Centrality 
 V(advice_net)$dc <- degree(advice_net)
@@ -435,7 +419,6 @@ V(advice_net)$bc <- betweenness(advice_net)
 V(advice_net)$ec <- evcent(advice_net)$vector
 V(advice_net)$cc <- closeness(advice_net)
 
-# combine the centrality scores
 centrality <- data.frame(cbind(nodes$id, V(advice_net)$dc, V(advice_net)$bc, V(advice_net)$ec, V(advice_net)$cc)) 
 colnames(centrality)[1] <- "examiner_id"
 colnames(centrality)[2] <- "degree_centrality"
@@ -443,7 +426,6 @@ colnames(centrality)[3] <- "betweenness_centrality"
 colnames(centrality)[4] <- "eigenvector_centrality"
 colnames(centrality)[5] <- "closeness_centrality"
 
-# merge centrality to applications
 examiner_joined <- left_join(examiner_aus, centrality, by = c("examiner_id" = "examiner_id"))
 examiner_joined <- examiner_joined %>%
   drop_na(degree_centrality)
@@ -477,10 +459,18 @@ rm(nodes)
 rm(centrality)
 ```
 
-## Lineaf regression
+``` r
+graphnetwork <- ggraph(advice_net, layout = "kk") +                                         
+  geom_node_point(size = 2,  ) +  
+  geom_node_text(aes(label = ""), nudge_y = 0.05, nudge_x = 0.2)+ 
+  geom_edge_link(edge_color="grey")
+graphnetwork
+```
+
+![](Ex4ter_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
-# run linear regression to estimate the relationship between centrality and app_proc_time
+# estimate the relation between centrality and app_proc_time
 mreg = lm(as.numeric(mean_app_proc_time)~degree_centrality+betweenness_centrality+eigenvector_centrality+closeness_centrality,
           data=examiner_joined)
 summary(mreg)
@@ -511,10 +501,28 @@ summary(mreg)
     ## Multiple R-squared:  0.01142,    Adjusted R-squared:  0.008492 
     ## F-statistic: 3.899 on 4 and 1350 DF,  p-value: 0.003739
 
+#### We observe that Degree centrality, betweenness centrality and closeness centrality reduce the length of processing applications.
+
+\####Degree centrality: when adding 1 degree centrality, we reduce
+processing time by 0.9361 days. This implies that the more degree
+centrality the faster the application. An examiner who has a great
+amount of connections is more efficient in this network than an examiner
+with less connections. \#### Betweenness centrality and closeness
+centrality also have an inversely related application time. In
+particular with closeness centrality the impact is to reduce application
+times by 49 days (this seems a big number). It implies that being on the
+shortest paths between examiners, allows to reduce processing times
+significantly. \#### On the other hand, an increase in Eigen vector
+centrality decreases the efficiency of applications: knowing “famous”
+friends does not help reduce application times. On the contrary we may
+infer that famous friends would themselves be too busy being efficient
+with processing their own applications received, to the detriment of
+helping high eigen-vector friends.
+
 ``` r
-#### linear regression - selected work group 2450 & 2480
+#### linear regression - selected work groups
 examiner_joined_2wg <- examiner_joined %>%
-filter(wg == 2450 | wg == 2480)
+filter(wg == 1640 | wg == 1730)
 
 mreg2 = lm(as.numeric(mean_app_proc_time)~degree_centrality+betweenness_centrality+eigenvector_centrality+closeness_centrality,
           data=examiner_joined_2wg)
@@ -529,28 +537,56 @@ summary(mreg2)
     ## 
     ## Residuals:
     ##     Min      1Q  Median      3Q     Max 
-    ## -926.83 -202.41   45.55  251.46  900.41 
+    ## -654.70 -166.75    1.35  151.06  597.64 
     ## 
     ## Coefficients:
     ##                          Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)             1.500e+03  7.486e+01  20.032   <2e-16 ***
-    ## degree_centrality      -2.117e+00  1.188e+00  -1.783   0.0787 .  
-    ## betweenness_centrality  5.354e-03  3.695e-02   0.145   0.8852    
-    ## eigenvector_centrality -8.213e+06  1.535e+07  -0.535   0.5943    
-    ## closeness_centrality    5.283e+01  1.517e+02   0.348   0.7286    
+    ## (Intercept)             1.318e+03  4.803e+01  27.433   <2e-16 ***
+    ## degree_centrality       1.010e-01  4.287e-01   0.236    0.814    
+    ## betweenness_centrality  1.336e-01  2.482e-01   0.538    0.592    
+    ## eigenvector_centrality  5.946e+07  8.732e+07   0.681    0.498    
+    ## closeness_centrality   -4.077e+01  7.174e+01  -0.568    0.571    
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     ## 
-    ## Residual standard error: 423 on 75 degrees of freedom
-    ##   (33 observations deleted due to missingness)
-    ## Multiple R-squared:  0.05775,    Adjusted R-squared:  0.007495 
-    ## F-statistic: 1.149 on 4 and 75 DF,  p-value: 0.3402
+    ## Residual standard error: 242.5 on 82 degrees of freedom
+    ##   (48 observations deleted due to missingness)
+    ## Multiple R-squared:  0.01485,    Adjusted R-squared:  -0.03321 
+    ## F-statistic: 0.309 on 4 and 82 DF,  p-value: 0.8712
+
+#### The relationships observed between centrality and efficiency is different in our selected subgroup than on the overall network. In our subset, higher centrality measures involve higher processing times, except only in the case of closeness centrality. Interestingly in this subset, an increase in degree centrality, betweenness centrality and eigen vector centrality, drive higher processing times. In this case, what matters is not “what you know” nor “who you know”.
+
+#### Closeness centrality in this case is the only centrality measure which inversely correlated with efficiency. Being on the shortest path between examiners is, comparativley to other measures, more an asset in this subset than it is for the overall network. The type of applications in this subset seems to differ from the entire network.
+
+## 3 - Impact of gender
 
 ``` r
-#Overall, the effect of centrality is greater for work groups 2450 and 2480 than in the entire USPTO organization. This is potentially due to the nature of applications that require more communications, collaborations and advice seeking in specific domain subjects. 
+library(scales) 
 ```
 
-## Impact of gender
+    ## 
+    ## Attaching package: 'scales'
+
+    ## The following object is masked from 'package:purrr':
+    ## 
+    ##     discard
+
+    ## The following object is masked from 'package:readr':
+    ## 
+    ##     col_factor
+
+``` r
+plot1 <- ggplot(examiner_joined, aes(gender)) + 
+          geom_bar(aes(y = (..count..)/sum(..count..))) + 
+          scale_y_continuous(labels=scales::percent) +
+          ylab("Relative Frequencies") +
+          ggtitle("Gender distribution")
+
+plot1
+```
+
+![](Ex4ter_files/figure-gfm/unnamed-chunk-16-1.png)<!-- --> \####
+network is composed of vast majority of males, around 72%
 
 ``` r
 # male
@@ -587,6 +623,8 @@ summary(mreg3)
     ## Multiple R-squared:  0.01605,    Adjusted R-squared:  0.01199 
     ## F-statistic: 3.951 on 4 and 969 DF,  p-value: 0.003461
 
+#### the most efficient centrality measure in this case are degree and closeness centrality: the more connections the male examiner has, and the more frequently he is on shortest paths between other examiners, the more efficient he is in processing applications. NOthe that this reflects in part what we observed in the overall network, un pacticular the highest reduction in processing times with closeness centrality. On the other hand, having “famous” friends does not help to be efficient, on the contrary.
+
 ``` r
 # female
 examiner_joined_f <- examiner_joined %>%
@@ -622,35 +660,14 @@ summary(mreg4)
     ## Multiple R-squared:  0.01609,    Adjusted R-squared:  0.005622 
     ## F-statistic: 1.537 on 4 and 376 DF,  p-value: 0.1907
 
-``` r
-library(scales) 
-```
+#### The relationship between different centrality measures and efficiency is different between males and females in our network. The female group within the network shows different effects of centrality measures on efficiency in processing applications. While the male subgroup and the overall group have higher efficiency with higher closeness, in this case closeness centrality is driving longer processing times. On the other hand, to reduce processing times the most efficiently is having “famous” friends in this subgroup. This contrasts greatly with all the case obeserved so far.
 
-    ## 
-    ## Attaching package: 'scales'
+#### So for a female examiner to be more efficient, she needs to know someone “famous” or “powerful”. We may infer this would be male examiners… So whetever the nuymber of connections or the situation on the paths of other examiners, what makes a female more efficient is to know someone influent.
 
-    ## The following object is masked from 'package:purrr':
-    ## 
-    ##     discard
-
-    ## The following object is masked from 'package:readr':
-    ## 
-    ##     col_factor
+## 4. Implications
 
 ``` r
-plot1 <- ggplot(examiner_joined, aes(gender)) + 
-          geom_bar(aes(y = (..count..)/sum(..count..))) + 
-          scale_y_continuous(labels=scales::percent) +
-          ylab("Relative Frequencies") +
-          ggtitle("Gender distribution for USPTO")
-
-plot1
-```
-
-![](Ex4ter_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
-
-``` r
-#Visializing the gender distribution and application processing time by gender for USPTO.
+#Visualizing the gender distribution and application processing time by gender for USPTO.
 
 plot2 <- ggplot(examiner_joined, aes(gender,mean_app_proc_time)) + 
           geom_bar(posititon="dodge", stat="summary", fun="mean") + 
@@ -662,10 +679,43 @@ plot2 <- ggplot(examiner_joined, aes(gender,mean_app_proc_time)) +
     ## Warning: Ignoring unknown parameters: posititon
 
 ``` r
-## Warning: Ignoring unknown parameters: posititon
 grid.arrange(plot1,plot2,ncol=2, widths=c(1,1))
 ```
 
     ## Don't know how to automatically pick scale for object of type difftime. Defaulting to continuous.
 
-![](Ex4ter_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+![](Ex4ter_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+
+#### The overall efficiency of females in this network is lower than this of males. As females depend more on famous friends to become efficient than males, and as there are mostly males, we can imagine a situation where women need to ask for help to become efficient. Meanwhile males are more efficient when having higher closeness centrality.
+
+``` r
+#Visualizing the gender distribution and application processing time by gender for subgroup.
+library(scales) 
+plot3 <- ggplot(examiner_joined_2wg, aes(gender)) + 
+          geom_bar(aes(y = (..count..)/sum(..count..))) + 
+          scale_y_continuous(labels=scales::percent) +
+          ylab("Relative Frequencies") +
+          ggtitle("Gender distribution")
+
+plot4 <- ggplot(examiner_joined_2wg, aes(gender,mean_app_proc_time)) + 
+          geom_bar(posititon="dodge", stat="summary", fun="mean") + 
+          ylab("Mean App Proc Time (Days)") +
+          #ylim(0,0.65) +
+          ggtitle("App Proc Time for USPTO")
+```
+
+    ## Warning: Ignoring unknown parameters: posititon
+
+``` r
+grid.arrange(plot3,plot2,ncol=2, widths=c(1,1))
+```
+
+    ## Don't know how to automatically pick scale for object of type difftime. Defaulting to continuous.
+
+![](Ex4ter_files/figure-gfm/unnamed-chunk-20-1.png)<!-- -->
+
+#### Subset is composed of majority of males, but the gap is smaller in this subset than it is in the general population of the network (males at close to 60%). We can infer that women in this subest have more cooperation between one another, than they have in general population, because they are proportionnaly better represented and can help each other more. This would explain the better relative efficiency of women than this of men in this subset.
+
+#### as a conclusion, having amore balanced ratio of male and female allows for better efficiency of women. However fromp the chart the efficiency of men seems to decrease in this subest as compared to the overall network. So the USPTO would need to find the right balance bewteen genders to have the highest overall efficiency.
+
+#### Of course all these comments cover only gender, it could be interesting to look at other variables to further understand how working groups could be composed to reach optimal efficiency within the overall network.
