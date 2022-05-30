@@ -1,0 +1,374 @@
+---
+title: "Exercise 4"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+
+## Load libraries
+
+```{r }
+library(tidyverse)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(readr)
+library(lubridate)
+library(arrow)
+library(gender)
+library(wru)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+```
+
+## Load data
+```{r }
+applications <- read_parquet("app_data_sample.parquet")
+edges <- read_csv("edges_sample.csv")
+```
+
+
+
+## Add attributes
+```{r }
+examiner_names <- applications %>% 
+  distinct(examiner_name_first)
+# get a table of names and gender
+examiner_names_gender <- examiner_names %>% 
+  do(results = gender(.$examiner_name_first, method = "ssa")) %>% 
+  unnest(cols = c(results), keep_empty = TRUE) %>% 
+  select(
+    examiner_name_first = name,
+    gender,
+    proportion_female
+  )
+examiner_names_gender
+# remove extra colums from the gender table
+examiner_names_gender <- examiner_names_gender %>% 
+  select(examiner_name_first, gender)
+# joining gender back to the dataset
+applications <- applications %>% 
+  left_join(examiner_names_gender, by = "examiner_name_first")
+# cleaning up
+rm(examiner_names)
+rm(examiner_names_gender)
+gc()
+
+```
+
+```{r }
+examiner_surnames <- applications %>% 
+  select(surname = examiner_name_last) %>% 
+  distinct()
+examiner_race <- predict_race(voter.file = examiner_surnames, surname.only = T) %>% 
+  as_tibble()
+
+examiner_race <- examiner_race %>% 
+  mutate(max_race_p = pmax(pred.asi, pred.bla, pred.his, pred.oth, pred.whi)) %>% 
+  mutate(race = case_when(
+    max_race_p == pred.asi ~ "Asian",
+    max_race_p == pred.bla ~ "black",
+    max_race_p == pred.his ~ "Hispanic",
+    max_race_p == pred.oth ~ "other",
+    max_race_p == pred.whi ~ "white",
+    TRUE ~ NA_character_
+  ))
+# removing extra columns
+examiner_race <- examiner_race %>% 
+  select(surname,race)
+applications <- applications %>% 
+  left_join(examiner_race, by = c("examiner_name_last" = "surname"))
+rm(examiner_race)
+rm(examiner_surnames)
+gc()
+```
+
+```{r }
+examiner_dates <- applications %>% 
+  select(examiner_id, filing_date, appl_status_date) 
+examiner_dates <- examiner_dates %>% 
+  mutate(start_date = ymd(filing_date), end_date = as_date(dmy_hms(appl_status_date)))
+
+examiner_dates <- examiner_dates %>% 
+  group_by(examiner_id) %>% 
+  summarise(
+    earliest_date = min(start_date, na.rm = TRUE), 
+    latest_date = max(end_date, na.rm = TRUE),
+    tenure_days = interval(earliest_date, latest_date) %/% days(1)
+    ) %>% 
+  filter(year(latest_date)<2018)
+
+
+applications <- applications %>% 
+  left_join(examiner_dates, by = "examiner_id")
+rm(examiner_dates)
+gc()
+
+
+```
+
+
+## 1. Create application processing time variable
+
+
+```{r }
+# compute the final decision date as either abandon date or patent issue date
+application_dates <- applications %>% 
+    mutate(decision_date = coalesce(abandon_date,patent_issue_date)) %>%
+    select(application_number,filing_date, abandon_date, patent_issue_date, decision_date, examiner_id, examiner_art_unit, gender, race, tenure_days) %>%
+    filter(!is.na(decision_date))
+
+# compute the application processing time as the difference of filing date and decision date
+application_dates <- application_dates %>% 
+    #mutate(app_proc_time = decision_date - filing_date)
+    mutate(app_proc_time = difftime(decision_date, filing_date, units = "days"))
+
+
+# filter out negative and outlying application processing time
+application_dates <- application_dates %>% 
+    filter(app_proc_time>ddays(0)) %>% 
+    filter(app_proc_time<ddays(10000))
+
+```
+
+
+## Estimate relationship between centrality and application processing time
+
+
+```{r }
+
+# get the workgroup from art unit as rounding down to digit tenth.
+application_dates <- application_dates %>%
+  mutate(wg = (application_dates$examiner_art_unit%/%10) * 10)
+
+# Find out which is the dominating workgroup an examiner handled the applications for.
+library(plyr)
+
+
+```
+
+```{r }
+
+library(dplyr)
+library(lubridate)
+application_dates <- mutate(
+  application_dates,
+  period = case_when(
+    filing_date<ymd("2007-01-01") ~ NA_character_,
+    filing_date<ymd("2008-01-01") ~ "t0",
+    filing_date<ymd("2009-01-01") ~ "t1",
+    filing_date<ymd("2010-01-01") ~ "t2",
+    filing_date<ymd("2011-01-01") ~ "t3",
+    filing_date<ymd("2012-01-01") ~ "t4",
+    filing_date<ymd("2013-01-01") ~ "t5",
+    filing_date<ymd("2014-01-01") ~ "t6",
+    filing_date<ymd("2015-01-01") ~ "t7",
+    filing_date<ymd("2016-01-01") ~ "t8",
+    TRUE~ NA_character_)
+  )
+
+# get number of applications
+library(plyr)
+examiner_wg_napp <- ddply(application_dates, .(examiner_id, period, wg), nrow)
+names(examiner_wg_napp) <- c("examiner_id","period", "wg", "n_applications")
+
+# assume an examiner belong to the wg he/she most frequently handled applications for, if tie take the greater wg
+examiner_wg_napp <- examiner_wg_napp[order(examiner_wg_napp$examiner_id, examiner_wg_napp$period, -(examiner_wg_napp$n_applications), -(examiner_wg_napp$wg)), ] ### sort first
+examiner_wg <- examiner_wg_napp [!duplicated(examiner_wg_napp[c(1,2)]),]
+examiner_wg <- select(examiner_wg, c("examiner_id","wg","period"))
+examiner_wg <- drop_na(examiner_wg)
+
+rm(examiner_wg_napp)
+
+
+
+
+# compute average application processing time
+
+cols <- c("examiner_id","period", "wg", "gender", "race", "tenure_days")
+
+examiners <- application_dates %>%
+    group_by(across(all_of(cols))) %>%
+    dplyr::summarize(mean_app_proc_time = mean(app_proc_time, na.rm=TRUE), n_app = n()) %>%
+    drop_na()
+
+# compute average application processing time
+
+cols <- c("examiner_id","period", "wg", "gender", "race", "tenure_days")
+
+examiners <- application_dates %>%
+    group_by(across(all_of(cols))) %>%
+    dplyr::summarize(mean_app_proc_time = mean(app_proc_time, na.rm=TRUE), n_app = n()) %>%
+    drop_na()
+
+
+```
+
+
+```{r }
+# subset from applications examiners who belong to the two selected work groups
+examiner_aus <- examiners %>%
+    filter(period == "t1") %>% 
+    #filter(wg == 164 | wg == 173) %>%
+    select(wg, examiner_id, gender, race, tenure_days, mean_app_proc_time, n_app) %>%
+    distinct(examiner_id, .keep_all=TRUE) %>% 
+    drop_na() 
+
+# subset from edges examiners who belong to the two selected work groups
+edges_aus <- edges %>%
+  filter(ego_examiner_id %in% examiner_aus$examiner_id) %>%
+  filter(alter_examiner_id %in% examiner_aus$examiner_id) %>%
+  drop_na() #585
+
+# merge work group information
+network <- left_join(edges_aus, examiner_aus, by = c("ego_examiner_id" = "examiner_id"))
+colnames(network)[6] <- "ego_examiner_wg"
+colnames(network)[7] <- "ego_examiner_gender"
+colnames(network)[8] <- "ego_examiner_race"
+colnames(network)[9] <- "ego_examiner_tenure"
+colnames(network)[10] <- "ego_examiner_appprooctime"
+colnames(network)[11] <- "ego_examiner_napp"
+network <- subset(network, select = -c(period))
+network <- left_join(network, examiner_aus, by = c("alter_examiner_id" = "examiner_id"))
+colnames(network)[12] <- "alter_examiner_wg"
+colnames(network)[13] <- "alter_examiner_gender"
+colnames(network)[14] <- "alter_examiner_race"
+colnames(network)[15] <- "alter_examiner_tenure"
+colnames(network)[16] <- "alter_examiner_appprooctime"
+colnames(network)[17] <- "alter_examiner_napp"
+network <- subset(network, select = -c(period))
+
+# create edge list
+edge_list <- select(network, c("ego_examiner_id","alter_examiner_id"))
+
+# create node list
+ego <- select(network, c("ego_examiner_id","ego_examiner_wg")) %>%
+    dplyr::rename(id=ego_examiner_id, wg=ego_examiner_wg)
+alter <- select(network, c("alter_examiner_id","alter_examiner_wg")) %>%
+    dplyr::rename(id=alter_examiner_id, wg=alter_examiner_wg)
+nodes <- rbind(ego, alter) %>%
+  select(id) %>%
+  distinct() %>%
+  drop_na()
+
+advice_net = graph_from_data_frame(d=edge_list, vertices=nodes, directed=TRUE)
+advice_net
+
+
+
+```
+```{r }
+# calculate Centrality 
+V(advice_net)$dc <- degree(advice_net)
+V(advice_net)$bc <- betweenness(advice_net)
+V(advice_net)$ec <- evcent(advice_net)$vector
+V(advice_net)$cc <- closeness(advice_net)
+
+# combine the centrality scores
+centrality <- data.frame(cbind(nodes$id, V(advice_net)$dc, V(advice_net)$bc, V(advice_net)$ec, V(advice_net)$cc)) 
+colnames(centrality)[1] <- "examiner_id"
+colnames(centrality)[2] <- "degree_centrality"
+colnames(centrality)[3] <- "betweenness_centrality"
+colnames(centrality)[4] <- "eigenvector_centrality"
+colnames(centrality)[5] <- "closeness_centrality"
+
+# merge centrality to applications
+examiner_joined <- left_join(examiner_aus, centrality, by = c("examiner_id" = "examiner_id"))
+examiner_joined <- examiner_joined %>%
+  drop_na(degree_centrality)
+
+head(examiner_joined)
+
+rm(examiner_wg)
+rm(alter)
+rm(ego)
+rm(examiner_aus)
+rm(edges_aus)
+rm(edge_list)
+rm(edges)
+rm(nodes)
+rm(centrality)
+```
+
+
+## Lineaf regression
+
+```{r }
+# run linear regression to estimate the relationship between centrality and app_proc_time
+mreg = lm(as.numeric(mean_app_proc_time)~degree_centrality+betweenness_centrality+eigenvector_centrality+closeness_centrality,
+          data=examiner_joined)
+summary(mreg)
+
+```
+
+
+```{r }
+#### linear regression - selected work group 2450 & 2480
+examiner_joined_2wg <- examiner_joined %>%
+filter(wg == 2450 | wg == 2480)
+
+mreg2 = lm(as.numeric(mean_app_proc_time)~degree_centrality+betweenness_centrality+eigenvector_centrality+closeness_centrality,
+          data=examiner_joined_2wg)
+summary(mreg2)
+
+#Overall, the effect of centrality is greater for work groups 2450 and 2480 than in the entire USPTO organization. This is potentially due to the nature of applications that require more communications, collaborations and advice seeking in specific domain subjects. 
+```
+
+
+## Impact of gender
+
+
+```{r }
+# male
+examiner_joined_m <- examiner_joined %>%
+  filter(gender == "male")
+
+mreg3 = lm(as.numeric(mean_app_proc_time)~degree_centrality+betweenness_centrality+eigenvector_centrality+closeness_centrality,
+           data=examiner_joined_m)
+summary(mreg3)
+```
+
+
+```{r }
+# female
+examiner_joined_f <- examiner_joined %>%
+  filter(gender == "female")
+
+mreg4 = lm(as.numeric(mean_app_proc_time)~degree_centrality+betweenness_centrality+eigenvector_centrality+closeness_centrality,
+           data=examiner_joined_f)
+summary(mreg4)
+```
+
+```{r }
+library(scales) 
+plot1 <- ggplot(examiner_joined, aes(gender)) + 
+          geom_bar(aes(y = (..count..)/sum(..count..))) + 
+          scale_y_continuous(labels=scales::percent) +
+          ylab("Relative Frequencies") +
+          ggtitle("Gender distribution for USPTO")
+
+plot1
+```
+
+
+```{r }
+#Visializing the gender distribution and application processing time by gender for USPTO.
+
+plot2 <- ggplot(examiner_joined, aes(gender,mean_app_proc_time)) + 
+          geom_bar(posititon="dodge", stat="summary", fun="mean") + 
+          ylab("Mean App Proc Time (Days)") +
+          #ylim(0,0.65) +
+          ggtitle("App Proc Time for USPTO")
+## Warning: Ignoring unknown parameters: posititon
+grid.arrange(plot1,plot2,ncol=2, widths=c(1,1))
+
+
+```
